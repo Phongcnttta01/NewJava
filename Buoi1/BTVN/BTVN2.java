@@ -16,7 +16,6 @@ public class BTVN2 {
             number /= 10;
         }
 
-        // Output the result
         System.out.println("Tích của các chữ số: " + product);
     }
 }

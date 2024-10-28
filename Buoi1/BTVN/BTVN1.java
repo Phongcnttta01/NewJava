@@ -21,7 +21,6 @@ public class BTVN1 {
 
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-
         System.out.print("Nhap so tu nhien n: ");
         int n = scanner.nextInt();
         System.out.print("Nhap co so b (2 <= b <= 16): ");
