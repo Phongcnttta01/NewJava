@@ -1,0 +1,501 @@
+package TSPD_D_GA;
+
+import javax.sound.midi.Soundbank;
+import java.util.*;
+
+public class TSP_D_GA {
+
+    static Random random = new Random();
+
+    public static class City {
+        public int id;
+        public double x;
+        public double y;
+        public final double price=1;
+        public final double alpha=0.8;
+
+        public City(int id, double x, double y) {
+            this.id = id;
+            this.x = x;
+            this.y = y;
+
+        }
+
+        public double distanceTo(City other) {
+            return Math.sqrt(Math.pow(this.x - other.x, 2) + Math.pow(this.y - other.y, 2));
+        }
+    }
+
+    public static class Individual {
+        public int[][] individual;
+
+        public List<City> humanRoute;
+        public List<City> droneRoute;
+        public double fitness;
+
+        public Individual() {
+            this.humanRoute = new ArrayList<>();
+            this.droneRoute = new ArrayList<>();
+            this.fitness = 0;
+        }
+
+        public void calculateFitness() {
+            double humanCost = calculateHumanRoute();
+            double droneCost = calculateDroneRoute();
+            this.fitness = 1 / Math.max(humanCost, droneCost);
+        }
+
+        private double calculateHumanRoute() {
+            double totalCost = 0;
+            for (int i = 0; i < humanRoute.size() - 1; i++) {
+                City current = humanRoute.get(i);
+                City next = humanRoute.get(i + 1);
+                totalCost += current.distanceTo(next) * current.price;
+            }
+            return totalCost;
+        }
+
+        private double calculateDroneRoute() {
+            double totalCost = 0;
+            // Đảm bảo kích thước đủ lớn cho truy cập các cụm 3 thành phố
+            for (int i = 0; i + 2 < droneRoute.size(); i += 3) {
+                City start = droneRoute.get(i);
+                City middle = droneRoute.get(i + 1);
+                City end = droneRoute.get(i + 2);
+                totalCost += middle.distanceTo(start) * middle.price * middle.alpha;
+                totalCost += end.distanceTo(middle) * end.price * end.alpha;
+            }
+            return totalCost;
+        }
+
+        public Individual initIndividual( List<City> cities,int[] visits) {
+            Individual newIndividual = new Individual();
+            int n_numberCity = 0;
+            for(int i =0;i<visits.length;i++){
+                n_numberCity+=visits[i];
+            }
+            int[] visitcopy = new int[visits.length];
+            for(int i =0;i<visits.length;++i) visitcopy[i] = visits[i];
+            if (n_numberCity > 0) {
+                int[] oneLine = new int[n_numberCity + 2];
+                int[] twoLine = new int[n_numberCity + 2];
+
+                oneLine[0] = 0;
+                oneLine[n_numberCity + 1] = 0;
+                int k =1;
+                int[] temp = new int[n_numberCity];
+                for (int i = 0; i < n_numberCity; ++i) {
+                    while(visitcopy[k]>0 ){
+                        temp[i]=k;
+                        visitcopy[k]--;
+                        ++i;
+                    }
+                    --i;
+                    k++;
+                }
+                shuffleArray(temp);
+                for (int i = 1; i < n_numberCity + 1; ++i) {
+                    oneLine[i] = temp[i - 1];
+                }
+
+                twoLine[0] = 0;
+                for (int i = 1; i < n_numberCity + 1; ++i) {
+                    twoLine[i] = random.nextInt(2);
+                    if (twoLine[i - 1] == 1) twoLine[i] = 0;
+                }
+                twoLine[n_numberCity + 1] = 0;
+
+                newIndividual.individual = new int[2][n_numberCity + 2];
+                for (int i = 0; i < n_numberCity + 2; ++i) {
+                    newIndividual.individual[0][i] = oneLine[i];
+                    newIndividual.individual[1][i] = twoLine[i];
+                }
+                // Tạo humanRoute từ individual
+                for (int i = 0; i < n_numberCity + 2; ++i) {
+                    if (newIndividual.individual[1][i] == 0) {
+                        newIndividual.humanRoute.add(cities.get(newIndividual.individual[0][i]));
+                    }
+                }
+                // Tạo droneRoute từ individual
+                for (int i = 0; i + 2 < n_numberCity + 2; ++i) {
+                    if (newIndividual.individual[1][i] == 0 && newIndividual.individual[1][i + 1] == 1 && newIndividual.individual[1][i + 2] == 0) {
+                        newIndividual.droneRoute.add(cities.get(newIndividual.individual[0][i]));
+                        newIndividual.droneRoute.add(cities.get(newIndividual.individual[0][i + 1]));
+                        newIndividual.droneRoute.add(cities.get(newIndividual.individual[0][i + 2]));
+                        i += 1; // Bỏ qua các phần tử đã xử lý
+                    }
+                }
+                return newIndividual;
+            }
+
+            return newIndividual;
+        }
+        public void initRoute(Individual newIndividual,int numberCity,List<City> cities){
+            // Tạo humanRoute từ individual
+            if (this.humanRoute != null) {
+                this.humanRoute.clear();
+            }
+
+            for (int i = 0; i < numberCity + 2; ++i) {
+                if (newIndividual.individual[1][i] == 0) {
+                    newIndividual.humanRoute.add(cities.get(newIndividual.individual[0][i]));
+                }
+            }
+            if (this.droneRoute != null) {
+                this.droneRoute.clear();
+            }
+            // Tạo droneRoute từ individual
+            for (int i = 0; i + 2 < numberCity + 2; ++i) {
+                if (newIndividual.individual[1][i] == 0 && newIndividual.individual[1][i + 1] == 1 && newIndividual.individual[1][i + 2] == 0) {
+                    newIndividual.droneRoute.add(cities.get(newIndividual.individual[0][i]));
+                    newIndividual.droneRoute.add(cities.get(newIndividual.individual[0][i + 1]));
+                    newIndividual.droneRoute.add(cities.get(newIndividual.individual[0][i + 2]));
+                    i += 1; // Bỏ qua các phần tử đã xử lý
+                }
+            }
+        }
+        private static void shuffleArray(int[] array) {
+            Random random = new Random();
+            for (int i = array.length - 1; i > 0; i--) {
+                int j = random.nextInt(i + 1);
+                int temp = array[i];
+                array[i] = array[j];
+                array[j] = temp;
+            }
+        }
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Individual:\n");
+
+            // In mảng individual
+            sb.append("Matrix Representation:\n");
+            for (int i = 0; i < individual.length; i++) {
+                for (int j = 0; j < individual[i].length; j++) {
+                    sb.append(individual[i][j]).append(" ");
+                }
+                sb.append("\n");
+            }
+
+            // In humanRoute
+            sb.append("Human Route: ");
+            humanRoute.forEach(city -> sb.append(city.id).append(" "));
+            sb.append("\n");
+
+            // In droneRoute
+            sb.append("Drone Route: ");
+            droneRoute.forEach(city -> sb.append(city.id).append(" "));
+            sb.append("\n");
+
+            // In fitness
+            sb.append("Fitness: ").append(fitness).append("\n");
+
+            return sb.toString();
+        }
+
+    }
+
+    public static class GeneticAlgorithm {
+        public int populationSize;
+        public int generations;
+        public double mutationRate;
+        public List<City> cities;
+        public List<Individual> population; // Add the population field
+
+        public GeneticAlgorithm(int populationSize, int generations, double mutationRate, List<City> cities) {
+            this.populationSize = populationSize;
+            this.generations = generations;
+            this.mutationRate = mutationRate;
+            this.cities = cities;
+
+        }
+
+        public Individual solve(List<City> cities,int[] visits) {
+           initializePopulation(cities,visits); // Initialize population in the beginning
+            for (int generation = 0; generation < generations; generation++) {
+                evolve(cities,visits); // Evolve the population
+            }
+            return findBestIndividual(); // Return the best individual found
+        }
+
+        private void initializePopulation(List<City> cities,int[] visits) {
+         //  this.population.clear(); // Clear any existing population
+            this.population = new ArrayList<>();
+            for (int i = 0; i < populationSize; i++) {
+                Individual individual = new Individual();
+                individual= individual.initIndividual( cities,visits);
+                caTheHopLe(individual,cities,visits);
+                individual.calculateFitness();
+                population.add(individual);
+            }
+        }
+
+        private void evolve(List<City> cities,int[] visits) {
+            // Sắp xếp quần thể theo độ thích nghi giảm dần
+            population.sort((ind1, ind2) -> Double.compare(ind2.fitness, ind1.fitness));
+
+            // Giữ lại 2 cá thể tốt nhất
+            List<Individual> newPopulation = new ArrayList<>();
+            newPopulation.add(population.get(0)); // Cá thể tốt nhất
+            newPopulation.add(population.get(1)); // Cá thể tốt thứ hai
+
+            // Sinh cá thể mới để lấp đầy quần thể
+            while (newPopulation.size() < populationSize) {
+                Individual parent1 = selectParent();
+                Individual parent2 = selectParent();
+                Individual child = crossover(parent1, parent2,cities,visits);
+                mutate(child,visits);
+                child.calculateFitness();
+                newPopulation.add(child);
+            }
+
+            // Cập nhật quần thể
+            population = newPopulation;
+        }
+
+        private Individual selectParent() {
+            // Tính tổng độ thích nghi của toàn bộ quần thể
+            double totalFitness = population.stream().mapToDouble(ind -> ind.fitness).sum();
+
+            // Sinh số ngẫu nhiên trong khoảng [0, totalFitness]
+            double randomValue = random.nextDouble() * totalFitness;
+
+            // Tìm cá thể phù hợp với xác suất ngẫu nhiên
+            double cumulativeFitness = 0.0;
+            for (Individual individual : population) {
+                cumulativeFitness += individual.fitness;
+                if (cumulativeFitness >= randomValue) {
+                    return individual;
+                }
+            }
+
+            // Trường hợp không tìm thấy (do lỗi làm tròn), trả về cá thể cuối cùng
+            return population.get(population.size() - 1);
+        }
+
+        private Individual crossover(Individual parent1, Individual parent2, List<City> cities, int[] visits) {
+            Individual child = new Individual();
+            int n_numberCity = 0;
+            for (int i = 0; i < visits.length; i++) {
+                n_numberCity += visits[i];
+            }
+            child = child.initIndividual(cities, visits);
+            int numberCity = parent1.individual[0].length - 2; // Số thành phố không tính điểm đầu và cuối
+
+            // Chọn 2 điểm cắt ngẫu nhiên
+            int splitIndex1 = random.nextInt(numberCity - 1) + 1;
+            int splitIndex2 = random.nextInt(numberCity - splitIndex1) + splitIndex1 + 1;
+
+            // Lấy phần đầu của parent1 từ 0 đến splitIndex1
+            for (int i = 0; i < splitIndex1; i++) {
+                child.individual[0][i] = parent1.individual[0][i];
+                child.individual[1][i] = parent1.individual[1][i];
+            }
+
+            // Lấy phần giữa từ parent2 từ splitIndex1 đến splitIndex2
+            for (int i = splitIndex1; i < splitIndex2; i++) {
+                child.individual[0][i] = parent2.individual[0][i];
+                child.individual[1][i] = parent2.individual[1][i];
+            }
+
+            // Lấy phần còn lại từ parent1 sau splitIndex2
+            int currentIndex = splitIndex2;
+            for (int i = splitIndex2; i < numberCity; i++) {
+                int city = parent1.individual[0][i];
+                if (!containsCity(child.individual[0], city, currentIndex)) {
+                    child.individual[0][currentIndex] = city;
+                    child.individual[1][currentIndex] = parent1.individual[1][i];
+                    currentIndex++;
+                }
+            }
+
+            // Hoàn tất đầu và cuối
+            child.individual[0][0] = 0;
+            child.individual[0][numberCity + 1] = 0;
+            child.individual[1][0] = 0;
+            child.individual[1][numberCity + 1] = 0;
+
+            // Kiểm tra và chỉnh sửa nếu cần
+            checkAvailable(child);
+            child.initRoute(child, numberCity, cities);
+
+            if (kiemTraSoLanTham(child, visits)) {
+                caTheHopLe(child,cities,visits);
+                // Tái tạo hoặc sửa child nếu cần
+                return child;
+            }
+
+            return population.get(0); // Trả về một cá thể từ quần thể (có thể bạn muốn sửa điều này)
+        }
+
+
+        private void mutate(Individual individual, int[] visits) {
+            int numberCity =0;
+            for(int i =0;i<visits.length;i++){
+                numberCity+=visits[i];
+            }
+            if (Math.random() < mutationRate) {
+                // Chọn ngẫu nhiên hai thành phố không phải điểm đầu hoặc cuối
+                int index1 = random.nextInt(numberCity) + 1;
+                int index2 = random.nextInt(numberCity) + 1;
+
+                // Hoán đổi hai thành phố trong tuyến đường
+                int temp = individual.individual[0][index1];
+                individual.individual[0][index1] = individual.individual[0][index2];
+                individual.individual[0][index2] = temp;
+
+                // Đổi trạng thái ngẫu nhiên cho một thành phố
+                individual.individual[1][index1] = random.nextInt(2);
+            }
+
+            // Cập nhật lại thông tin tuyến đường
+            if (!kiemTraSoLanTham(individual, visits)) {
+
+                caTheHopLe(individual,cities,visits);
+            }
+        }
+
+        public void caTheHopLe(Individual individual,List<City> cities,int[] visits){
+            int num = individual.individual[0].length;
+            int n_numberCity =0;
+            for(int i =0;i<visits.length;i++){
+                n_numberCity+=visits[i];
+            }
+            int numberCity = n_numberCity;
+            int a = 0;
+            while (a==0){
+                for(int m =0;m<num-1;++m){
+                    if(individual.individual[0][m] == individual.individual[0][m+1]) {
+                        individual = individual.initIndividual(cities,visits);
+                        individual.initRoute(individual, numberCity, cities);
+                        break;
+                    }
+                }
+                for(int m =0;m<num-1;++m){
+                    if(individual.individual[0][m] == individual.individual[0][m+1]) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        private static void shuffleArray(int[] array) {
+            Random random = new Random();
+            for (int i = array.length - 1; i > 0; i--) {
+                int j = random.nextInt(i + 1);
+                int temp = array[i];
+                array[i] = array[j];
+                array[j] = temp;
+            }
+        }
+        public void checkAvailable(Individual newIndividual){
+            int numberCity = newIndividual.individual[0].length - 2;
+            for (int i = 1; i  < numberCity + 1; ++i) {
+                if (newIndividual.individual[1][i] == 1 ) {
+                    newIndividual.individual[1][i-1] = 0;
+                    newIndividual.individual[1][i+1] = 0;
+                }
+            }
+        }
+
+        private boolean containsCity(int[] route, int city, int limit) {
+            for (int i = 0; i < limit; i++) {
+                if (route[i] == city) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        public static boolean kiemTraSoLanTham(Individual individual, int[] visits) {
+            // Tạo một mảng đếm số lần xuất hiện của các thành phố
+            int[] count = new int[visits.length];
+
+            // Duyệt qua tuyến đường humanRoute và droneRoute
+            for (City city : individual.humanRoute) {
+                count[city.id]++;
+            }
+            for (City city : individual.droneRoute) {
+                count[city.id]++;
+            }
+
+            // Kiểm tra xem số lần thăm có khớp với mảng visits không
+            for (int i = 0; i < visits.length; i++) {
+                if (count[i] != visits[i]) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+
+        private Individual findBestIndividual() {
+            Individual bestIndividual = population.get(0);
+            for (Individual individual : population) {
+                if (individual.fitness > bestIndividual.fitness) {
+                    bestIndividual = individual;
+                }
+            }
+            return bestIndividual;
+        }
+
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Moi nhap so luong thanh pho : ");
+        int numberCity = sc.nextInt();
+        List<City> cities = new ArrayList<>();
+        int[] visits = new int[numberCity+1];
+        int temp = numberCity;
+        System.out.println("Moi nhap thanh pho : ");
+        while(temp>-1){
+            int id = sc.nextInt();
+            double x = sc.nextDouble();
+            double y = sc.nextDouble();
+            cities.add(new City(id,x,y));
+            temp--;
+        }
+        System.out.print("moi nhap so lan : ");
+        for(int i =0;i<visits.length;++i){
+            visits[i] = sc.nextInt();
+        }
+       int n_numberCity =0;
+        for(int i =0;i<visits.length;i++){
+            n_numberCity+=visits[i];
+        }
+        numberCity = n_numberCity;
+
+        GeneticAlgorithm ga = new GeneticAlgorithm(10, 100, 0.05, cities);
+        Individual bestSolution = ga.solve(cities,visits);
+
+
+        System.out.println("Best Fitness: " + bestSolution.fitness);
+        for(int i =0;i<2;++i){
+            for(int j=0;j<numberCity+2;++j){
+                System.out.print(bestSolution.individual[i][j]+ " ");
+            }
+            System.out.println();
+        }
+        System.out.println("Human Route: ");
+        bestSolution.humanRoute.forEach(city -> System.out.print(city.id + " "));
+        System.out.println("Human price : " + bestSolution.calculateHumanRoute());
+        System.out.println("\nDrone Route: ");
+        bestSolution.droneRoute.forEach(city -> System.out.print(city.id + " "));
+        System.out.println("Drone price : " + bestSolution.calculateDroneRoute());
+//        Individual individual = new Individual();
+//        individual = individual.initIndividual(numberCity,cities,visits);
+//        for(int i =0;i<2;++i){
+//            for(int j=0;j<n_numberCity+2;++j){
+//                System.out.print(individual.individual[i][j]+ " ");
+//            }
+//            System.out.println();
+//        }
+//        System.out.println("Human Route: ");
+//        individual.humanRoute.forEach(city -> System.out.print(city.id + " "));
+//        System.out.println("Human price : " + individual.calculateHumanRoute());
+//        System.out.println("\nDrone Route: ");
+//        individual.droneRoute.forEach(city -> System.out.print(city.id + " "));
+//        System.out.println("Drone price : " + individual.calculateDroneRoute());
+    }
+}
